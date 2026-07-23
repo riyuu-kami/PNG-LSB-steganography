@@ -1,5 +1,6 @@
 import zlib
 import random
+import hashlib
 
 def paeth_predictor(a, b, c):
     p = a + b - c
@@ -17,28 +18,28 @@ def unfilter_scanlines(data, width, height, bpp=3):
     stride = width * bpp
     result = bytearray()
     i = 0
-    for f in range(height): # loop over each scanline
-        filter_type = data[i] # each scanline starts with one byte indicating the filter type
-        i += 1 # i is incremented to move past filter byte.
-        scanline = data[i:i+stride] # extracts the filtered scanline pixel data
+    for f in range(height):
+        filter_type = data[i]
+        i += 1
+        scanline = data[i:i+stride]
         i += stride
         recon = bytearray(scanline)
-        if filter_type == 0: # None
+        if filter_type == 0:
             pass
-        elif filter_type == 1: # Sub: reconstruct by adding previous bytes from same scanline.
+        elif filter_type == 1:
             for x in range(bpp, stride):
                 recon[x] = (recon[x] + recon[x - bpp]) & 0xFF
-        elif filter_type == 2: # Up: add values from previous scanline at same positions.
+        elif filter_type == 2:
             prev = result[-stride:] if len(result) >= stride else bytearray(stride)
             for x in range(stride):
                 recon[x] = (recon[x] + prev[x]) & 0xFF
-        elif filter_type == 3: # Average: use average of left (same scanline) and up (previous scanline).
+        elif filter_type == 3:
             prev = result[-stride:] if len(result) >= stride else bytearray(stride)
             for x in range(stride):
                 left = recon[x - bpp] if x >= bpp else 0
                 up = prev[x]
                 recon[x] = (recon[x] + ((left + up) >> 1)) & 0xFF
-        elif filter_type == 4: # Paeth: use Paeth predictor to compute each byte.
+        elif filter_type == 4:
             prev = result[-stride:] if len(result) >= stride else bytearray(stride)
             for x in range(stride):
                 left = recon[x - bpp] if x >= bpp else 0
@@ -60,14 +61,15 @@ def filter_scanlines(raw_data, width, height, bpp=3):
         filtered.extend(scanline)
     return bytes(filtered)
 
-def embed_file_in_raw_pixels(raw_pixels, file_bytes):
-    random.seed(100)
-    # prefix the file bytes with its length (4 bytes, big endian) so extraction knows how many bytes to read
+def embed_file_in_raw_pixels(raw_pixels, file_bytes, password):
+
+    seed = int(hashlib.sha256(password.encode()).hexdigest()[:16], 16)
+    random.seed(seed)
+    
     file_length = len(file_bytes)
     length_bytes = file_length.to_bytes(4, 'big')
     data_to_embed = length_bytes + file_bytes
 
-    # Convert to bits
     data_bits = ''.join(format(byte, '08b') for byte in data_to_embed)
 
     pixel_array = bytearray(raw_pixels)
@@ -75,7 +77,8 @@ def embed_file_in_raw_pixels(raw_pixels, file_bytes):
     if len(data_bits) > total_pixels:
         raise ValueError("File too large to embed in image pixels.")
 
-    indices = random.sample(range(total_pixels), len(data_bits))
+    all_indices = random.sample(range(total_pixels), total_pixels)
+    indices = all_indices[:len(data_bits)]
 
     for i, bit in enumerate(data_bits):
         idx = indices[i]
@@ -91,11 +94,11 @@ def save_png(filename, width, height, raw_pixels):
         ihdr_data = (
             width.to_bytes(4, 'big') +
             height.to_bytes(4, 'big') +
-            b'\x08' +  # bit depth 8
-            b'\x02' +  # color type 2 = RGB
-            b'\x00' +  # compression method
-            b'\x00' +  # filter method
-            b'\x00'    # interlace method
+            b'\x08' +
+            b'\x02' +
+            b'\x00' +
+            b'\x00' +
+            b'\x00'
         )
         f.write(len(ihdr_data).to_bytes(4, 'big'))
         f.write(b'IHDR')
@@ -113,10 +116,11 @@ def save_png(filename, width, height, raw_pixels):
 def main():
     input_filename = 'image.png'
     output_filename = 'modified_image.png'
-    file_to_embed = '' 
+    file_to_embed = 'secret.txt'
+    password = 'meow'
 
     with open(input_filename, 'rb') as f:
-        f.read(8)  # skip PNG signature
+        f.read(8)
 
         width = None
         height = None
@@ -129,7 +133,7 @@ def main():
             length = int.from_bytes(length_bytes, 'big')
             chunk_type = f.read(4)
             chunk_data = f.read(length)
-            f.read(4)  # CRC
+            f.read(4)
 
             if chunk_type == b'IHDR':
                 width = int.from_bytes(chunk_data[0:4], 'big')
@@ -146,8 +150,9 @@ def main():
     with open(file_to_embed, 'rb') as f:
         file_bytes = f.read()
 
-    embedded_pixels = embed_file_in_raw_pixels(raw_pixels, file_bytes)
+    embedded_pixels = embed_file_in_raw_pixels(raw_pixels, file_bytes, password)
     save_png(output_filename, width, height, embedded_pixels)
+    print("Embedding complete.")
 
 if __name__ == '__main__':
     main()
