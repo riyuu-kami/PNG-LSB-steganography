@@ -70,9 +70,9 @@ def extract_embedded_file(raw_pixels, password):
 
 
 def main():
-    input_filename = 'modified_image.png'
-    output_file = 'extractedsecret.txt'
-    password = 'meow'
+    input_filename = ''
+    output_file = ''
+    password = ''
 
     try:
         read_png_signature(input_filename)
