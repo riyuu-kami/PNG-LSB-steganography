@@ -108,7 +108,7 @@ def save_png(filename, width, height, raw_pixels):
         f.write(zlib.crc32(b'IDAT' + compressed).to_bytes(4, 'big'))
 
         f.write(b'\x00\x00\x00\x00IEND')
-        f.write(b'\xaeB\x82')
+        f.write(b'\xae\x42\x60\x82')
 
 def main():
     input_filename = 'image.png'
