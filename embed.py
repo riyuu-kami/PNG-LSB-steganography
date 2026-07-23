@@ -114,10 +114,10 @@ def save_png(filename, width, height, raw_pixels):
         f.write(b'\xae\x42\x60\x82')
 
 def main():
-    input_filename = 'image.png'
-    output_filename = 'modified_image.png'
-    file_to_embed = 'secret.txt'
-    password = 'meow'
+    input_filename = ''
+    output_filename = ''
+    file_to_embed = ''
+    password = ''
 
     with open(input_filename, 'rb') as f:
         f.read(8)
